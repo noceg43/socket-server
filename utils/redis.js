@@ -1,5 +1,7 @@
 const { REDIS_USERNAME, REDIS_PASSWORD, REDIS_HOST, REDIS_PORT } = require('./config')
 const Room = require('../models/room')
+const User = require('../models/user')
+
 
 const EXPIRATION_TIME = 60 * 60 // 1 hour in seconds
 
@@ -34,8 +36,34 @@ async function insertRoom(room) {
   }
 }
 
+async function joinRoom(roomId, user) {
+
+  if (await redisClient.exists(roomId) === 0) {
+    throw new Error('Room not found')
+  }
+
+  if (!(user instanceof User)) {
+    throw new Error('Invalid user object')
+  }
+
+  // if user already in room return error
+  if (JSON.parse(await redisClient.get(roomId)).users.some(u => u.user.id === user.id)) {
+    throw new Error('User already in room')
+  }
+
+  const room = Room.fromMap(JSON.parse(await redisClient.get(roomId)))
+
+  room.addUser(user)
+  await redisClient.set(roomId, JSON.stringify(room), { EX: EXPIRATION_TIME })
+
+  return room
+}
+
+
+
 
 module.exports = {
   redisClient,
   insertRoom,
+  joinRoom,
 }
