@@ -11,7 +11,8 @@ roomsRouter.get('/', async (request, response) => {
 
 roomsRouter.post('/create', async (request, response) => {
   try {
-    const user = User.fromMap(request.body.user)
+    const userId = request.user.id
+    const user = User.fromRequestData(userId, request.body)
 
     const id = UniqueCharOTP(4)
     const newRoom = Room.create(id, user)
@@ -25,18 +26,17 @@ roomsRouter.post('/create', async (request, response) => {
 
 roomsRouter.post('/join/:id', async (request, response) => {
   const { id } = request.params
-  const { user } = request.body
+  const userId = request.user.id
 
   try {
-    const updatedRoom = await joinRoom(id, User.fromMap(user))
+    const user = User.fromRequestData(userId, request.body)
+    const updatedRoom = await joinRoom(id, user)
     response.json(updatedRoom)
   }
   catch (error) {
     response.status(400).json({ error: error.message })
   }
 })
-
-
 
 
 module.exports = roomsRouter

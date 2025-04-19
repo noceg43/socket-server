@@ -1,20 +1,26 @@
-POST http://localhost:3001/api/rooms/create HTTP/1.1
-content-type: application/json
+// First get a token
+POST http://localhost:3001/api/login HTTP/1.1
+Content-Type: application/json
 
-{
-    "user": {
-        "id": "CREATOR_ID",
-        "name": "Steve"
-    }
-}
+{}
+
 ###
 
-POST http://localhost:3001/api/rooms/join/MGMX HTTP/1.1
+// Create a room
+POST http://localhost:3001/api/rooms/create HTTP/1.1
+Authorization: Bearer ...
 Content-Type: application/json
 
 {
-  "user": {
-    "id": "1234UNIQUEID",
-    "name": "Gigi"
-  }
+    "name": "Steve"
+}
+###
+
+// Join a room
+POST http://localhost:3001/api/rooms/join/WYWT HTTP/1.1
+Authorization: Bearer ...
+Content-Type: application/json
+
+{
+  "name": "Gigi"
 }

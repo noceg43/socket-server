@@ -34,7 +34,6 @@ class Room {
     if (user instanceof User) {
       this.joinedPlayers.push({
         user,
-        addedAt: new Date().toISOString()
       })
     } else {
       throw new Error('Invalid user object')
@@ -44,9 +43,8 @@ class Room {
   static fromMap(map) {
     try {
       const creator = map.creator ? User.fromMap(map.creator) : null
-      const joinedPlayers = map.joinedPlayers.map(({ user, addedAt }) => ({
+      const joinedPlayers = map.joinedPlayers.map(({ user }) => ({
         user: User.fromMap(user),
-        addedAt
       }))
 
       return new Room(map.id, creator, joinedPlayers)

@@ -17,7 +17,18 @@ class User {
     } catch {
       throw new Error('Invalid user object')
     }
+  }
 
+
+  static fromRequestData(userId, body = {}) {
+    if (!userId) {
+      throw new Error('User ID is required')
+    }
+    if (!body.name) {
+      throw new Error('User name is required')
+    }
+
+    return new User(userId, body.name)
   }
 }
 

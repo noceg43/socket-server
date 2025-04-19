@@ -11,10 +11,13 @@ const REDIS_USERNAME = process.env.NODE_ENV === 'test' ? process.env.TEST_REDIS_
 
 const REDIS_PASSWORD = process.env.NODE_ENV === 'test' ? process.env.TEST_REDIS_PASSWORD : process.env.REDIS_PASSWORD
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your_very_secret_key' // Added JWT Secret
+
 module.exports = {
   PORT,
   REDIS_HOST,
   REDIS_PORT,
   REDIS_USERNAME,
-  REDIS_PASSWORD
+  REDIS_PASSWORD,
+  JWT_SECRET // Export JWT Secret
 }

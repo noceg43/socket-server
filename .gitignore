@@ -60,6 +60,9 @@ jspm_packages/
 .env.test
 .env.production
 
+# REST client files
+rest/room.rest
+
 # IDE specific files
 .vscode/
 .idea/
@@ -71,3 +74,4 @@ jspm_packages/
 
 # Windows specific files
 Thumbs.db
+
