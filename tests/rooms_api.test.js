@@ -52,16 +52,15 @@ describe('Room API', () => {
       .expect('Content-Type', /application\/json/)
   })
 
-  test('should create a room with default name when name is not provided', async () => {
+  test('should not create a room without a name', async () => {
     const response = await api
       .post('/api/rooms/create')
       .set('Authorization', `Bearer ${authToken}`) // Add Authorization header
-      .send({})
-      .expect(201)
+      .send({}) // No name provided
+      .expect(400)
       .expect('Content-Type', /application\/json/)
 
-    assert(response.body.id)
-    assert(response.body.creator.name === 'Anonymous')
+    assert(response.body.error === 'User name is required')
   })
 
   test('should not create a room with an invalid token', async () => {
@@ -121,6 +120,23 @@ describe('Room API', () => {
       .expect('Content-Type', /application\/json/)
   })
 
+  test('should not join a room without a name', async () => {
+    // Create a room first
+    const id = 'TEST_NO_NAME'
+    const creator = new User('creator-123', 'Creator')
+    const newRoom = Room.create(id, creator)
+    await insertRoom(newRoom)
+
+    const response = await api
+      .post(`/api/rooms/join/${id}`)
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({}) // No name provided
+      .expect(400)
+      .expect('Content-Type', /application\/json/)
+
+    assert(response.body.error === 'User name is required')
+  })
+
   test('should not join a room with an invalid token', async () => {
     const id = 'TEST_INVALID_JOIN'
     const creator = new User('creator-123', 'Creator')
@@ -145,24 +161,6 @@ describe('Room API', () => {
       .expect('Content-Type', /application\/json/)
 
     assert(response.body.error === 'Room not found')
-  })
-
-  test('should join a room with default name when name is not provided', async () => {
-    // Create a room first
-    const id = 'TEST_DEFAULT_NAME'
-    const creator = new User('creator-123', 'Creator')
-    const newRoom = Room.create(id, creator)
-    await insertRoom(newRoom)
-
-    const response = await api
-      .post(`/api/rooms/join/${id}`)
-      .set('Authorization', `Bearer ${authToken}`)
-      .send({}) // No name provided
-      .expect(200)
-      .expect('Content-Type', /application\/json/)
-
-    assert(response.body.joinedPlayers.some(p => p.user.id === userId))
-    assert(response.body.joinedPlayers.some(p => p.user.name === 'Anonymous'))
   })
 
   after(async () => {
