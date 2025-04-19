@@ -46,14 +46,12 @@ async function joinRoom(roomId, user) {
     throw new Error('Invalid user object')
   }
 
-  // if user already in room return error
-  if (JSON.parse(await redisClient.get(roomId)).users.some(u => u.user.id === user.id)) {
-    throw new Error('User already in room')
-  }
-
   const room = Room.fromMap(JSON.parse(await redisClient.get(roomId)))
 
-  room.addUser(user)
+  if (!room.isUserInRoom(user) && !room.isUserCreator(user)) {
+    room.addUser(user)
+  }
+
   await redisClient.set(roomId, JSON.stringify(room), { EX: EXPIRATION_TIME })
 
   return room

@@ -1,23 +1,38 @@
 const User = require('./user')
 
 class Room {
-  constructor(id, users) {
+  constructor(id, creator, joinedPlayers) {
     this.id = id
-    this.users = users || []
+    this.creator = creator || null
+    this.joinedPlayers = joinedPlayers || []
+  }
+
+  isUserInRoom(user) {
+    if (user instanceof User) {
+      return this.joinedPlayers.some(({ user: joinedUser }) => joinedUser.id === user.id)
+    } else {
+      throw new Error('Invalid user object')
+    }
+  }
+
+  isUserCreator(user) {
+    if (user instanceof User) {
+      return this.creator && this.creator.id === user.id
+    } else {
+      throw new Error('Invalid user object')
+    }
   }
 
   static create(id, creator) {
     if (!(creator instanceof User)) {
       throw new Error('Invalid user object')
     }
-    const room = new Room(id)
-    room.addUser(creator)
-    return room
+    return new Room(id, creator)
   }
 
   addUser(user) {
     if (user instanceof User) {
-      this.users.push({
+      this.joinedPlayers.push({
         user,
         addedAt: new Date().toISOString()
       })
@@ -28,12 +43,13 @@ class Room {
 
   static fromMap(map) {
     try {
-      const users = map.users.map(({ user, addedAt }) => ({
+      const creator = map.creator ? User.fromMap(map.creator) : null
+      const joinedPlayers = map.joinedPlayers.map(({ user, addedAt }) => ({
         user: User.fromMap(user),
         addedAt
       }))
 
-      return new Room(map.id, users)
+      return new Room(map.id, creator, joinedPlayers)
     } catch {
       throw new Error('Invalid room object')
     }

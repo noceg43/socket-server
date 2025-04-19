@@ -64,7 +64,7 @@ test('should join an existing room', async () => {
     .expect(200)
     .expect('Content-Type', /application\/json/)
 
-  assert(response.body.users.some(u => u.user.id === newUser.id))
+  assert(response.body.joinedPlayers.some(u => u.user.id === newUser.id))
 })
 
 test('should not join a non-existing room', async () => {

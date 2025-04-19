@@ -10,6 +10,7 @@ app.use(express.json())
 
 app.use(middleware.limiter)
 
+app.use(middleware.requestLogger)
 app.use('/api/rooms', roomsRouter)
 
 app.use(middleware.unknownEndpoint)
