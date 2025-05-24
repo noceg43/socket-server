@@ -44,27 +44,57 @@ const tokenExtractor = (request, response, next) => {
   next()
 }
 
-const userExtractor = (request, response, next) => {
-  if (!request.token) {
-    return response.status(401).json({ error: 'token missing' })
+// Common authentication logic
+const authenticateUser = (token) => {
+  if (!token) {
+    return { error: 'token missing', status: 401 }
   }
 
   try {
-    const decodedToken = jwt.verify(request.token, config.JWT_SECRET)
+    const decodedToken = jwt.verify(token, config.JWT_SECRET)
     if (!decodedToken.id) {
-      return response.status(401).json({ error: 'token invalid' })
+      return { error: 'token invalid', status: 401 }
     }
-    request.user = decodedToken // Store the decoded token in request.user
+    return { user: decodedToken }
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
-      return response.status(401).json({ error: 'invalid token' })
+      return { error: 'invalid token', status: 401 }
     } else if (error.name === 'TokenExpiredError') {
-      return response.status(401).json({ error: 'token expired' })
+      return { error: 'token expired', status: 401 }
     }
     // Handle other potential errors
-    return response.status(500).json({ error: 'token verification failed' })
+    return { error: 'token verification failed', status: 500 }
   }
+}
 
+// REST API user extractor middleware
+const userExtractor = (request, response, next) => {
+  const result = authenticateUser(request.token)
+  
+  if (result.error) {
+    return response.status(result.status).json({ error: result.error })
+  }
+  
+  request.user = result.user
+  next()
+}
+
+// WebSocket user extractor middleware
+const socketUserExtractor = (socket, next) => {
+  // Extract token from socket handshake auth or headers (since postman sends it in headers)
+  const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization
+  
+  const tokenMatch = token && token.toLowerCase().startsWith('bearer ')
+  const extractedToken = tokenMatch ? token.substring(7) : null
+  const result = authenticateUser(extractedToken) 
+  
+  if (result.error) {
+    const error = new Error(result.error)
+    error.data = { status: result.status }
+    return next(error)
+  }
+  
+  socket.user = result.user
   next()
 }
 
@@ -74,5 +104,7 @@ module.exports = {
   unknownEndpoint,
   errorHandler,
   tokenExtractor,
-  userExtractor
+  userExtractor,
+  socketUserExtractor,
+  authenticateUser
 }

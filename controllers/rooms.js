@@ -24,19 +24,4 @@ roomsRouter.post('/create', async (request, response) => {
   }
 })
 
-roomsRouter.post('/join/:id', async (request, response) => {
-  const { id } = request.params
-  const userId = request.user.id
-
-  try {
-    const user = User.fromRequestData(userId, request.body)
-    const updatedRoom = await joinRoom(id, user)
-    response.json(updatedRoom)
-  }
-  catch (error) {
-    response.status(400).json({ error: error.message })
-  }
-})
-
-
 module.exports = roomsRouter

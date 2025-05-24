@@ -57,6 +57,15 @@ async function joinRoom(roomId, user) {
   return room
 }
 
+async function getRoom(roomId) {
+  if (await redisClient.exists(roomId) === 0) {
+    throw new Error('Room not found')
+  }
+
+  const roomData = JSON.parse(await redisClient.get(roomId))
+  return Room.fromMap(roomData)
+}
+
 
 
 
@@ -64,4 +73,5 @@ module.exports = {
   redisClient,
   insertRoom,
   joinRoom,
+  getRoom
 }

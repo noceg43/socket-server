@@ -1,13 +1,18 @@
 const { redisClient } = require('./utils/redis')
 const pkg = require('./package')
 const server = require('./app')
+const initWebSockets  = require('./controllers/room-socket')
 
 const PORT = parseInt(process.env.PORT) || 3001
 
 // Start server
-server.listen(PORT, () =>
+const wsServer = server.listen(PORT, () =>
   console.log(`${pkg.name}: listening on port ${PORT}`)
 )
+
+// Initialize WebSockets
+initWebSockets(wsServer)
+
 
 
 // Clean up resources on shutdown
