@@ -1,8 +1,8 @@
 const logger = require('./logger')
 const jwt = require('jsonwebtoken')
 const config = require('./config')
-
 const rateLimit = require('express-rate-limit')
+const auth = require('./auth'); 
 
 const requestLogger = (request, response, next) => {
   logger.info('Method:', request.method)
@@ -32,6 +32,26 @@ const errorHandler = (error, request, response, next) => {
   }
 
   next(error)
+}
+
+function loginMiddleware(req, res, next) {
+  const signature = req.headers['x-signature'];
+  const timestamp = req.headers['x-timestamp'];
+
+  if (!signature || !timestamp) {
+    return res.status(400).json({ error: 'Missing signature or timestamp' });
+  }
+
+  try {
+    const isSigned = auth.checkLoginSignature(signature, timestamp)
+    if (!isSigned) {
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  next(); // HMAC is valid
 }
 
 const tokenExtractor = (request, response, next) => {
@@ -106,5 +126,6 @@ module.exports = {
   tokenExtractor,
   userExtractor,
   socketUserExtractor,
-  authenticateUser
+  authenticateUser,
+  loginMiddleware
 }

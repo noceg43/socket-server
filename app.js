@@ -16,7 +16,7 @@ app.use(middleware.requestLogger)
 app.use(middleware.tokenExtractor)
 
 // Public route for getting a token
-app.use('/api/login', loginRouter)
+app.use('/api/login', middleware.loginMiddleware, loginRouter)
 
 // Protected routes - require a valid token
 app.use('/api/rooms', middleware.userExtractor, roomsRouter)

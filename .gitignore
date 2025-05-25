@@ -75,3 +75,5 @@ rest/room.rest
 # Windows specific files
 Thumbs.db
 
+# Debug scripts
+script.sh

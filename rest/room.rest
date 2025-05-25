@@ -1,9 +1,8 @@
 // First get a token
 POST http://localhost:3001/api/login HTTP/1.1
+X-Timestamp: 1748160556000
+X-Signature: 5bede640520016624575336b246c97de44ffb9f707ce2b9594fd5eb0f7dddeaf
 Content-Type: application/json
-
-{}
-
 ###
 
 // Create a room
