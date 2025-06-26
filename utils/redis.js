@@ -58,12 +58,11 @@ async function joinRoom(roomId, user) {
 }
 
 async function getRoom(roomId) {
-  if (await redisClient.exists(roomId) === 0) {
-    throw new Error('Room not found')
+  if (await redisClient.exists(roomId) !== 0) {
+    const roomData = JSON.parse(await redisClient.get(roomId))
+    return Room.fromMap(roomData)
   }
 
-  const roomData = JSON.parse(await redisClient.get(roomId))
-  return Room.fromMap(roomData)
 }
 
 

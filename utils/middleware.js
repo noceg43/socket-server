@@ -2,7 +2,7 @@ const logger = require('./logger')
 const jwt = require('jsonwebtoken')
 const config = require('./config')
 const rateLimit = require('express-rate-limit')
-const auth = require('./auth'); 
+const auth = require('./auth')
 
 const requestLogger = (request, response, next) => {
   logger.info('Method:', request.method)
@@ -35,23 +35,23 @@ const errorHandler = (error, request, response, next) => {
 }
 
 function loginMiddleware(req, res, next) {
-  const signature = req.headers['x-signature'];
-  const timestamp = req.headers['x-timestamp'];
+  const signature = req.headers['x-signature']
+  const timestamp = req.headers['x-timestamp']
 
   if (!signature || !timestamp) {
-    return res.status(400).json({ error: 'Missing signature or timestamp' });
+    return res.status(400).json({ error: 'Missing signature or timestamp' })
   }
 
   try {
     const isSigned = auth.checkLoginSignature(signature, timestamp)
     if (!isSigned) {
-      return res.status(401).json({ error: 'Invalid signature' });
+      return res.status(401).json({ error: 'Invalid signature' })
     }
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    return res.status(400).json({ error: error.message })
   }
 
-  next(); // HMAC is valid
+  next() // HMAC is valid
 }
 
 const tokenExtractor = (request, response, next) => {
@@ -90,11 +90,11 @@ const authenticateUser = (token) => {
 // REST API user extractor middleware
 const userExtractor = (request, response, next) => {
   const result = authenticateUser(request.token)
-  
+
   if (result.error) {
     return response.status(result.status).json({ error: result.error })
   }
-  
+
   request.user = result.user
   next()
 }
@@ -103,17 +103,16 @@ const userExtractor = (request, response, next) => {
 const socketUserExtractor = (socket, next) => {
   // Extract token from socket handshake auth or headers (since postman sends it in headers)
   const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization
-  
-  const tokenMatch = token && token.toLowerCase().startsWith('bearer ')
-  const extractedToken = tokenMatch ? token.substring(7) : null
-  const result = authenticateUser(extractedToken) 
-  
+
+
+  const result = authenticateUser(token)
+
   if (result.error) {
     const error = new Error(result.error)
     error.data = { status: result.status }
     return next(error)
   }
-  
+
   socket.user = result.user
   next()
 }
