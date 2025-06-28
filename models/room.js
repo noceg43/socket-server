@@ -1,40 +1,42 @@
 const User = require('./user')
 
 class Room {
-  constructor(id, creator, joinedPlayers) {
+  constructor(id, joinedPlayers, state) {
     this.id = id
-    this.creator = creator || null
     this.joinedPlayers = joinedPlayers || []
+    this.state = state || null
   }
 
   isUserInRoom(user) {
     if (user instanceof User) {
-      return this.joinedPlayers.some(({ user: joinedUser }) => joinedUser.id === user.id)
+      return this.joinedPlayers.some((joinedUser) => joinedUser.id === user.id)
     } else {
       throw new Error('Invalid user object')
     }
   }
 
-  isUserCreator(user) {
-    if (user instanceof User) {
-      return this.creator && this.creator.id === user.id
-    } else {
-      throw new Error('Invalid user object')
-    }
-  }
-
-  static create(id, creator) {
-    if (!(creator instanceof User)) {
-      throw new Error('Invalid user object')
-    }
-    return new Room(id, creator)
+  static create(id) {
+    return new Room(id)
   }
 
   addUser(user) {
     if (user instanceof User) {
-      this.joinedPlayers.push({
-        user,
-      })
+      const exists = this.joinedPlayers.some(
+        (joinedUser) => joinedUser.id === user.id
+      )
+      if (!exists) {
+        this.joinedPlayers.push(user)
+      }
+    } else {
+      throw new Error('Invalid user object')
+    }
+  }
+
+  removeUser(user) {
+    if (user instanceof User) {
+      this.joinedPlayers = this.joinedPlayers.filter(
+        (joinedUser) => joinedUser.id !== user.id
+      )
     } else {
       throw new Error('Invalid user object')
     }
@@ -42,12 +44,11 @@ class Room {
 
   static fromMap(map) {
     try {
-      const creator = map.creator ? User.fromMap(map.creator) : null
-      const joinedPlayers = map.joinedPlayers.map(({ user }) => ({
-        user: User.fromMap(user),
-      }))
+      const joinedPlayers = map.joinedPlayers.map((user) => (
+        User.fromMap(user)))
+      const state = map.state || null
 
-      return new Room(map.id, creator, joinedPlayers)
+      return new Room(map.id, joinedPlayers, state)
     } catch {
       throw new Error('Invalid room object')
     }

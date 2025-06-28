@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken')
 const config = require('./config')
 const rateLimit = require('express-rate-limit')
 const auth = require('./auth')
+const User = require('../models/user')
 
 const requestLogger = (request, response, next) => {
   logger.info('Method:', request.method)
@@ -104,6 +105,7 @@ const socketUserExtractor = (socket, next) => {
   // Extract token from socket handshake auth or headers (since postman sends it in headers)
   const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization
 
+  const userName = socket.handshake.auth?.name
 
   const result = authenticateUser(token)
 
@@ -113,7 +115,7 @@ const socketUserExtractor = (socket, next) => {
     return next(error)
   }
 
-  socket.user = result.user
+  socket.user = new User(result.user.id,userName)
   next()
 }
 

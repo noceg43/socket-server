@@ -11,11 +11,8 @@ roomsRouter.get('/', async (request, response) => {
 
 roomsRouter.post('/create', async (request, response) => {
   try {
-    const userId = request.user.id
-    const user = User.fromRequestData(userId, request.body)
-
     const id = UniqueCharOTP(4)
-    const newRoom = Room.create(id, user)
+    const newRoom = Room.create(id)
 
     await insertRoom(newRoom)
     response.status(201).json(newRoom)

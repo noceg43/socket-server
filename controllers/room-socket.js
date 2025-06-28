@@ -2,7 +2,7 @@ const { redisClient } = require('../utils/redis')
 const { createAdapter } = require('@socket.io/redis-adapter')
 const { instrument } = require('@socket.io/admin-ui')
 const middleware = require('../utils/middleware')
-const { getRoom } = require('../utils/redis')
+const redis = require('../utils/redis')
 
 module.exports = initWebSockets = (server) => {
   // Initialize Socket.io with CORS configuration
@@ -44,16 +44,7 @@ module.exports = initWebSockets = (server) => {
   // Listen for new connection
   io.on('connection', socket => {
     console.log(`User connected: ${socket.id}, User ID: ${socket.user?.id}`)
-    // Send an event every second
-    /*     const intervalId = setInterval(() => {
-      socket.emit('event', { time: new Date().toISOString() })
-    }, 1000)
-
-    // Clear the interval when the socket disconnects
-    socket.on('disconnect', () => {
-      clearInterval(intervalId)
-    }) */
-
+ 
     // Add listener for "signin" event
     socket.on('signin', async (data, callback) => {
       try {
@@ -74,8 +65,6 @@ module.exports = initWebSockets = (server) => {
       try {
         socket.leave(roomId)
         console.log(`User ${socket.id} (${socket.user.id}) left room: ${roomId}`)
-        socket.to(roomId).emit('user-left', { socketId: socket.id, userId: socket.user.id })
-        if (callback) callback(null, { success: true, room: roomId })
       } catch (err) {
         console.error(`Leave room error for ${socket.id}:`, err.message)
         if (callback) callback(err, null)
@@ -100,12 +89,14 @@ module.exports = initWebSockets = (server) => {
 
 
 const onJoinRoom = async (io, socket, roomId) => {
-  const room = await getRoom(roomId)
+  const room = await redis.getRoom(roomId)
   if (!room) {
     console.error(`Room ${roomId} not found`)
     return
   }
+  await redis.joinRoom(roomId, socket.user)
   socket.join(roomId)
+
   console.log(`User ${socket.id} joined room: ${roomId}`)
   // use io.sockets in order to notify the socket inside the room
   io.sockets.in(roomId).emit('event', { socketId: socket.id, userId: socket.user.id })
@@ -118,6 +109,7 @@ const onJoinRoom = async (io, socket, roomId) => {
   // Clear the interval when the socket disconnects
   socket.on('disconnect', () => {
     clearInterval(intervalId)
+    redis.leaveRoom(roomId, socket.user)
     console.log(`User ${socket.id} disconnected from room: ${roomId}`)
   })
 }
