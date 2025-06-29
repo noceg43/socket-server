@@ -45,35 +45,16 @@ module.exports = initWebSockets = (server) => {
   io.on('connection', socket => {
     console.log(`User connected: ${socket.id}, User ID: ${socket.user?.id}`)
  
-    // Add listener for "signin" event
-    socket.on('signin', async (data, callback) => {
-      try {
-        console.log(`User ${socket.id} (${socket.user.id}) signed in with data:`, data)
-        // You can add room joining logic here if needed
-        if (callback) callback(null, { success: true, socketId: socket.id, userId: socket.user.id })
-      } catch (err) {
-        console.error(`Signin error for ${socket.id}:`, err.message)
-        if (callback) callback(err, null)
-      }
-    })
-
     // Add listener for joining rooms
     socket.on('join-room', (roomId) => onJoinRoom(io, socket, roomId))
 
     // Add listener for leaving rooms
-    socket.on('leave-room', (roomId, callback) => {
-      try {
-        socket.leave(roomId)
-        console.log(`User ${socket.id} (${socket.user.id}) left room: ${roomId}`)
-      } catch (err) {
-        console.error(`Leave room error for ${socket.id}:`, err.message)
-        if (callback) callback(err, null)
-      }
-    })
+    socket.on('leave-room', (roomId) => onLeaveRoom(io, socket, roomId))
+
+    // Logs
     io.of('/').adapter.on('create-room', (room) => {
       console.log(`room ${room} was created`)
     })
-
     io.of('/').adapter.on('join-room', (room, id) => {
       console.log(`socket ${id} has joined room ${room}`)
     })
@@ -87,6 +68,17 @@ module.exports = initWebSockets = (server) => {
 }
 
 
+const onLeaveRoom = async (io, socket, roomId) => {
+  try {
+    socket.leave(roomId)
+    const room = await redis.leaveRoom(roomId, socket.user)
+    io.sockets.in(roomId).emit('event', room)
+    console.log(`User ${socket.id} (${socket.user.id}) left room: ${roomId}`)
+  } catch (err) {
+    console.error(`Leave room error for ${socket.id}:`, err.message)
+  }
+}
+
 
 const onJoinRoom = async (io, socket, roomId) => {
   const room = await redis.getRoom(roomId)
@@ -94,22 +86,15 @@ const onJoinRoom = async (io, socket, roomId) => {
     console.error(`Room ${roomId} not found`)
     return
   }
-  await redis.joinRoom(roomId, socket.user)
+  const updatedRoom = await redis.joinRoom(roomId, socket.user)
   socket.join(roomId)
 
   console.log(`User ${socket.id} joined room: ${roomId}`)
   // use io.sockets in order to notify the socket inside the room
-  io.sockets.in(roomId).emit('event', { socketId: socket.id, userId: socket.user.id })
-
-  // add a timestamp every second event
-  const intervalId = setInterval(() => {
-    io.sockets.in(roomId).emit('event', { time: new Date().toISOString() })
-  }, 100)
+  io.sockets.in(roomId).emit('event', updatedRoom)
 
   // Clear the interval when the socket disconnects
   socket.on('disconnect', () => {
-    clearInterval(intervalId)
-    redis.leaveRoom(roomId, socket.user)
-    console.log(`User ${socket.id} disconnected from room: ${roomId}`)
+    onLeaveRoom(io, socket, roomId)
   })
 }
