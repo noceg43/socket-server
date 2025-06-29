@@ -93,6 +93,12 @@ const onJoinRoom = async (io, socket, roomId) => {
   // use io.sockets in order to notify the socket inside the room
   io.sockets.in(roomId).emit('event', updatedRoom)
 
+  // Send event to room
+  socket.on('event', (roomId, event) => {
+    console.log(`Event received in room ${roomId}:`, event)
+    io.sockets.in(roomId).emit('event', event)
+  })
+
   // Clear the interval when the socket disconnects
   socket.on('disconnect', () => {
     onLeaveRoom(io, socket, roomId)
