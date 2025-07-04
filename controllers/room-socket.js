@@ -4,7 +4,7 @@ const { instrument } = require('@socket.io/admin-ui')
 const middleware = require('../utils/middleware')
 const redis = require('../utils/redis')
 
-module.exports = initWebSockets = (server) => {
+module.exports = initWebSockets = async (server) =>  {
   // Initialize Socket.io with CORS configuration
   const io = require('socket.io')(server, {
     cors: {
@@ -25,6 +25,11 @@ module.exports = initWebSockets = (server) => {
 
   // Replace in-memory adapter with Redis
   const subClient = redisClient.duplicate()
+  if (!redisClient.isOpen) {
+    await redisClient.connect()
+  }
+  await subClient.connect()
+
   io.adapter(createAdapter(redisClient, subClient))
 
   // Log admin UI access information
