@@ -2,15 +2,41 @@ import { z } from 'zod'
 import { Socket } from 'socket.io'
 import { Request } from 'express'
 
+// Constants
+export const MAX_USERS_PER_ROOM = 1
+
+// UserIcon enum for conspiracy theory themed icons
+export enum UserIcon {
+  ILLUMINATI_EYE = 'illuminati_eye',
+  EMF_DETECTOR = 'emf_detector',
+  REPTILIANS = 'reptilians',
+  UFO = 'ufo',
+  FLAT_EARTH = 'flat_earth',
+  MOLOCH = 'moloch',
+  PYRAMIDS = 'pyramids',
+  DOLPHINS = 'dolphins'
+}
+
+// Zod schema for UserIcon validation
+export const UserIconSchema = z.nativeEnum(UserIcon)
+
 // Zod schemas for validation
 export const UserSchema = z.object({
   id: z.string().min(1, 'User ID is required'),
   name: z.string().min(1, 'User name is required'),
 })
 
+export const UserInfoSchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+  userRoomId: z.string().min(1, 'User room ID is required'),
+  joinTimestamp: z.coerce.date(),
+  userIcon: UserIconSchema,
+})
+
 export const RoomSchema = z.object({
   id: z.string().min(1, 'Room ID is required'),
-  joinedPlayers: z.array(UserSchema).default([]),
+  joinedPlayers: z.array(UserSchema).max(MAX_USERS_PER_ROOM, `Room can have maximum ${MAX_USERS_PER_ROOM} players`).default([]),
+  userInfoList: z.array(UserInfoSchema).max(MAX_USERS_PER_ROOM, `Room can have maximum ${MAX_USERS_PER_ROOM} user info entries`).default([]),
   state: z.record(z.unknown()).nullable().default(null),
 })
 
@@ -43,6 +69,7 @@ export const EventDataSchema = z.record(z.unknown())
 
 // TypeScript types inferred from Zod schemas
 export type User = z.infer<typeof UserSchema>;
+export type UserInfo = z.infer<typeof UserInfoSchema>;
 export type Room = z.infer<typeof RoomSchema>;
 export type TokenPayload = z.infer<typeof TokenPayloadSchema>;
 export type CreateRoomRequest = z.infer<typeof CreateRoomRequestSchema>;
