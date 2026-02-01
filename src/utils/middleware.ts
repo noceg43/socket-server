@@ -133,7 +133,10 @@ export const socketUserExtractor = (socket: Socket, next: (err?: Error) => void)
 
   if (result.user) {
     // Attach user to socket
-    (socket as SocketWithUser).user = new User(result.user.id, userName || 'Anonymous')
+    (socket as SocketWithUser).user = new User({
+      id: result.user.id,
+      name: userName || 'Anonymous'
+    })
   }
 
   next()

@@ -3,9 +3,9 @@ import { Socket } from 'socket.io'
 import { Request } from 'express'
 
 // Constants
-export const MAX_USERS_PER_ROOM = 1
+export const MAX_USERS_PER_ROOM = 6 // Increased for a typical game
 
-// UserIcon enum for conspiracy theory themed icons
+// UserIcon enum
 export enum UserIcon {
   ILLUMINATI_EYE = 'illuminati_eye',
   EMF_DETECTOR = 'emf_detector',
@@ -17,10 +17,8 @@ export enum UserIcon {
   DOLPHINS = 'dolphins'
 }
 
-// Zod schema for UserIcon validation
 export const UserIconSchema = z.nativeEnum(UserIcon)
 
-// Zod schemas for validation
 export const UserSchema = z.object({
   id: z.string().min(1, 'User ID is required'),
   name: z.string().min(1, 'User name is required'),
@@ -28,17 +26,69 @@ export const UserSchema = z.object({
 
 export const UserInfoSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
-  userRoomId: z.string().min(1, 'User room ID is required'),
   joinTimestamp: z.coerce.date(),
   userIcon: UserIconSchema,
 })
+
+// ==========================================
+// STATE SCHEMAS
+// ==========================================
+
+export enum RoomStatus {
+  JOIN = 'join',
+  FILL = 'fill',
+  STARTED = 'started',
+  FINISHED = 'finished',
+}
+
+export const GameSettingsSchema = z.object({
+  nRounds: z.number().default(3),
+  timerDuration: z.number().default(60),
+});
+
+const BaseStateSchema = z.object({
+  gameSettings: GameSettingsSchema,
+});
+
+export const JoinStateSchema = BaseStateSchema.extend({
+  status: z.literal(RoomStatus.JOIN),
+  readyUsersId: z.array(z.string()).default([]),
+});
+
+export const FillStateSchema = BaseStateSchema.extend({
+  status: z.literal(RoomStatus.FILL),
+});
+
+export const StartedStateSchema = BaseStateSchema.extend({
+  status: z.literal(RoomStatus.STARTED),
+});
+
+export const FinishedStateSchema = BaseStateSchema.extend({
+  status: z.literal(RoomStatus.FINISHED),
+});
+
+export const RoomStateSchema = z.discriminatedUnion('status', [
+  JoinStateSchema,
+  FillStateSchema,
+  StartedStateSchema,
+  FinishedStateSchema,
+]);
+
+// ==========================================
+// ROOM SCHEMA
+// ==========================================
 
 export const RoomSchema = z.object({
   id: z.string().min(1, 'Room ID is required'),
   joinedPlayers: z.array(UserSchema).max(MAX_USERS_PER_ROOM, `Room can have maximum ${MAX_USERS_PER_ROOM} players`).default([]),
   userInfoList: z.array(UserInfoSchema).max(MAX_USERS_PER_ROOM, `Room can have maximum ${MAX_USERS_PER_ROOM} user info entries`).default([]),
-  state: z.record(z.unknown()).nullable().default(null),
+  // Updated to use the discriminated union
+  state: RoomStateSchema,
 })
+
+// ==========================================
+// OTHER SCHEMAS
+// ==========================================
 
 export const TokenPayloadSchema = z.object({
   id: z.string(),
@@ -47,16 +97,8 @@ export const TokenPayloadSchema = z.object({
   exp: z.number().optional(),
 })
 
-export const CreateRoomRequestSchema = z.object({
-  // Add any room creation parameters here if needed in the future
-})
+export const CreateRoomRequestSchema = z.object({})
 
-export const JoinRoomRequestSchema = z.object({
-  roomId: z.string().min(1, 'Room ID is required'),
-  name: z.string().min(1, 'User name is required'),
-})
-
-// Socket event schemas
 export const SocketJoinRoomSchema = z.string().min(1, 'Room ID is required')
 export const SocketLeaveRoomSchema = z.string().min(1, 'Room ID is required')
 export const SocketEventSchema = z.object({
@@ -64,44 +106,36 @@ export const SocketEventSchema = z.object({
   event: z.record(z.unknown()),
 })
 
-// Generic event data schema
-export const EventDataSchema = z.record(z.unknown())
-
-// TypeScript types inferred from Zod schemas
+// Inferred Types
 export type User = z.infer<typeof UserSchema>;
 export type UserInfo = z.infer<typeof UserInfoSchema>;
+export type GameSettings = z.infer<typeof GameSettingsSchema>;
+// RoomStateData is the raw JSON shape
+export type RoomStateData = z.infer<typeof RoomStateSchema>;
+// Room type now strictly includes the state
 export type Room = z.infer<typeof RoomSchema>;
+
 export type TokenPayload = z.infer<typeof TokenPayloadSchema>;
 export type CreateRoomRequest = z.infer<typeof CreateRoomRequestSchema>;
-export type JoinRoomRequest = z.infer<typeof JoinRoomRequestSchema>;
 export type SocketJoinRoom = z.infer<typeof SocketJoinRoomSchema>;
 export type SocketLeaveRoom = z.infer<typeof SocketLeaveRoomSchema>;
 export type SocketEvent = z.infer<typeof SocketEventSchema>;
 
-// Additional types
 export interface AuthenticationResult {
   error?: string;
   status?: number;
   user?: TokenPayload;
 }
 
-export interface SocketUserData {
-  id: string;
-  name?: string;
-}
-
-// Express middleware types
 export interface AuthenticatedRequest extends Request {
   user?: TokenPayload;
   token?: string;
 }
 
-// Socket.IO types
 export interface SocketWithUser extends Socket {
   user?: import('../models/user').User;
 }
 
-// Environment configuration types
 export interface Config {
   PORT?: string;
   REDIS_HOST?: string;

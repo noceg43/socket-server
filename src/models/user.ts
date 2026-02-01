@@ -5,24 +5,15 @@ export class User implements UserType {
   public readonly id: string
   public readonly name: string
 
-  constructor(id: string, name: string) {
+  constructor(data: UserType) {
     try {
-      // Validate input using Zod schema
-      const validatedData = UserSchema.parse({ id, name })
+      // Validate the full object using Zod schema
+      const validatedData = UserSchema.parse(data)
 
       this.id = validatedData.id
       this.name = validatedData.name
     } catch {
       throw new ValidationError('Invalid user data provided')
-    }
-  }
-
-  static fromUserData(userData: unknown): User {
-    try {
-      const validatedData = UserSchema.parse(userData)
-      return new User(validatedData.id, validatedData.name)
-    } catch {
-      throw new ValidationError('Invalid user data format')
     }
   }
 
@@ -34,7 +25,7 @@ export class User implements UserType {
       throw new UserError('User name is required', 400)
     }
 
-    return new User(userId, body.name)
+    return new User({ id: userId, name: body.name })
   }
 }
 

@@ -53,7 +53,7 @@ export async function joinRoom(roomId: string, user: User): Promise<Room> {
     throw new Error('Room data not found')
   }
 
-  const room = Room.fromRoomData(JSON.parse(roomData))
+  const room = new Room(JSON.parse(roomData))
 
   if (!room.isUserInRoom(user)) {
     room.addUser(user)
@@ -78,7 +78,7 @@ export async function leaveRoom(roomId: string, user: User): Promise<Room> {
     throw new Error('Room data not found')
   }
 
-  const room = Room.fromRoomData(JSON.parse(roomData))
+  const room = new Room(JSON.parse(roomData))
 
   if (room.isUserInRoom(user)) {
     room.removeUser(user)
@@ -93,7 +93,7 @@ export async function getRoom(roomId: string): Promise<Room | null> {
   if (exists !== 0) {
     const roomData = await redisClient.get(roomId)
     if (roomData) {
-      return Room.fromRoomData(JSON.parse(roomData))
+      return new Room(JSON.parse(roomData))
     }
   }
   return null
