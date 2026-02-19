@@ -1,3 +1,7 @@
+//TODO isnt' easier to just save on the redis the room logic object? why there is a serializer?
+// it would be easier to just add to the existing room object a state property (logic room from wth_logic) and save it on redis
+//TODO also you are working with js there is no need to export and import from json, just use the object directly ON ALL THIS PROJECT
+
 import {
     Room as LogicRoom,
     User as LogicUser,

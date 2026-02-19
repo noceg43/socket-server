@@ -10,6 +10,10 @@ import { SocketWithUser, SocketJoinRoomSchema, SocketLeaveRoomSchema } from '@/t
 import { GameInputEvent } from 'wth_logic'
 import { Room } from '@/models/room'
 
+//TODO: please do not remove the logs i provided previously (about socket io, keep them + those from wth_logic)
+
+//TODO don't use saveRoom from redis on every change, because the adapter will handle it
+
 interface ServerOptions {
   cors: {
     origin: string[];

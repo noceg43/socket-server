@@ -2,9 +2,6 @@ import { z } from 'zod'
 import { Socket } from 'socket.io'
 import { Request } from 'express'
 
-// Constants
-export const MAX_USERS_PER_ROOM = 8
-
 export const UserSchema = z.object({
   id: z.string().min(1, 'User ID is required'),
   name: z.string().min(1, 'User name is required'),
