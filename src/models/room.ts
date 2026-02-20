@@ -7,10 +7,17 @@ import { LogicConverter, SerializedRoom } from '../utils/logic-converter'
 export class Room {
   public readonly id: string
   public logicRoom: LogicRoom
+  public onStateChange?: (room: Room) => void
 
   constructor(id: string, logicRoom?: LogicRoom) {
     this.id = id
     this.logicRoom = logicRoom || new LogicRoom(new JoinState(), new ConsoleLogger())
+
+    this.logicRoom.on('transition', () => {
+      if (this.onStateChange) {
+        this.onStateChange(this)
+      }
+    })
   }
 
   isUserInRoom(user: User): boolean {

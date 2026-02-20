@@ -10,10 +10,6 @@ import { SocketWithUser, SocketJoinRoomSchema, SocketLeaveRoomSchema } from '@/t
 import { GameInputEvent } from 'wth_logic'
 import { Room } from '@/models/room'
 
-//TODO: please do not remove the logs i provided previously (about socket io, keep them + those from wth_logic)
-
-//TODO don't use saveRoom from redis on every change, because the adapter will handle it
-
 interface ServerOptions {
   cors: {
     origin: string[];
@@ -21,8 +17,33 @@ interface ServerOptions {
   };
 }
 
+let io: SocketIOServer
+const roomCache = new Map<string, Room>()
+
+const broadcastState = (roomId: string, room: Room) => {
+  if (io) {
+    io.sockets.in(roomId).emit('room-state', room.toJSON())
+  }
+}
+
+const getRoomInstance = async (roomId: string): Promise<Room | null> => {
+  if (roomCache.has(roomId)) {
+    return roomCache.get(roomId)!
+  }
+  const room = await redis.getRoom(roomId)
+  if (room) {
+    room.onStateChange = async (r) => {
+      await redis.saveRoom(r)
+      broadcastState(roomId, r)
+      console.log(`[LOGIC] Room ${roomId} state auto-persisted and broadcasted`)
+    }
+    roomCache.set(roomId, room)
+  }
+  return room
+}
+
 const initWebSockets = async (server: HttpServer): Promise<SocketIOServer> => {
-  const io = new SocketIOServer(server, {
+  io = new SocketIOServer(server, {
     cors: {
       origin: ['https://admin.socket.io'],
       credentials: true
@@ -47,22 +68,22 @@ const initWebSockets = async (server: HttpServer): Promise<SocketIOServer> => {
   io.adapter(createAdapter(redisClient, subClient))
 
   redisClient.on('error', (err: Error) => {
-    console.error(err.message)
+    console.error(`[REDIS] Client Error: ${err.message}`)
   })
 
   subClient.on('error', (err: Error) => {
-    console.error(err.message)
+    console.error(`[REDIS] SubClient Error: ${err.message}`)
   })
 
   io.on('connection', (socket: SocketWithUser) => {
-    console.log(`User connected: ${socket.id}, User ID: ${socket.user?.id}`)
+    console.log(`[SOCKET] Connected: ${socket.id}, User: ${socket.user?.id}`)
 
     socket.on('join-room', (roomId: unknown) => {
       try {
         const validatedRoomId = SocketJoinRoomSchema.parse(roomId)
-        onJoinRoom(io, socket, validatedRoomId)
+        onJoinRoom(socket, validatedRoomId)
       } catch (error) {
-        console.error(`Invalid join-room data from ${socket.id}:`, error)
+        console.error(`[SOCKET] Invalid join-room data from ${socket.id}:`, error)
         socket.emit('error', { message: 'Invalid room ID format' })
       }
     })
@@ -70,103 +91,118 @@ const initWebSockets = async (server: HttpServer): Promise<SocketIOServer> => {
     socket.on('leave-room', (roomId: unknown) => {
       try {
         const validatedRoomId = SocketLeaveRoomSchema.parse(roomId)
-        onLeaveRoom(io, socket, validatedRoomId)
+        onLeaveRoom(socket, validatedRoomId)
       } catch (error) {
-        console.error(`Invalid leave-room data from ${socket.id}:`, error)
+        console.error(`[SOCKET] Invalid leave-room data from ${socket.id}:`, error)
         socket.emit('error', { message: 'Invalid room ID format' })
       }
     })
 
     socket.on('disconnect', (reason: string) => {
-      console.log(`User disconnected: ${socket.id} (${socket.user?.id}), reason: ${reason}`)
+      console.log(`[SOCKET] Disconnected: ${socket.id} (${socket.user?.id}), Reason: ${reason}`)
     })
   })
 
   return io
 }
 
-const broadcastState = (io: SocketIOServer, roomId: string, room: Room) => {
-  io.sockets.in(roomId).emit('room-state', room.toJSON())
-}
-
 /**
  * Helper to handle game logic events consistently
  */
 const handleGameEvent = async (
-  io: SocketIOServer,
   socket: SocketWithUser,
   roomId: string,
   event: GameInputEvent
 ): Promise<void> => {
   try {
-    const room = await redis.getRoom(roomId)
-    if (!room) return
-
-    // Inject transition broadcast logic
-    const originalTransitionTo = room.logicRoom.transitionTo.bind(room.logicRoom)
-    room.logicRoom.transitionTo = (newState: any) => {
-      originalTransitionTo(newState)
-      // Save and broadcast whenever a transition happens
-      redis.saveRoom(room).then(() => {
-        broadcastState(io, roomId, room)
-      })
-    }
-
-    room.logicRoom.processEvent(event)
-    await redis.saveRoom(room)
-    broadcastState(io, roomId, room)
-  } catch (err) {
-    console.error(`Error processing game event ${event.type}:`, err)
-  }
-}
-
-const onLeaveRoom = async (io: SocketIOServer, socket: SocketWithUser, roomId: string): Promise<void> => {
-  try {
-    if (socket.user) {
-      const room = await redis.leaveRoom(roomId, socket.user)
-      socket.leave(roomId)
-      broadcastState(io, roomId, room)
-      console.log(`User ${socket.id} (${socket.user.id}) left room: ${roomId}`)
-    }
-  } catch (err) {
-    console.error(`Leave room error for ${socket.id}:`, err)
-  }
-}
-
-const onJoinRoom = async (io: SocketIOServer, socket: SocketWithUser, roomId: string): Promise<void> => {
-  try {
-    if (!socket.user) {
-      console.error('Socket user not found')
+    const room = await getRoomInstance(roomId)
+    if (!room) {
+      console.error(`[SOCKET] Room ${roomId} not found for event ${event.type}`)
       return
     }
 
-    const room = await redis.joinRoom(roomId, socket.user)
+    room.logicRoom.processEvent(event)
+
+    // Persist once after event processing
+    await redis.saveRoom(room)
+    broadcastState(roomId, room)
+
+  } catch (err) {
+    console.error(`[SOCKET] Error processing game event ${event.type}:`, err)
+  }
+}
+
+const onLeaveRoom = async (socket: SocketWithUser, roomId: string): Promise<void> => {
+  try {
+    if (socket.user) {
+      const room = await getRoomInstance(roomId)
+      if (!room) return
+
+      // Instead of using redis.leaveRoom (which creates a new instance),
+      // we modify our cached instance and save it.
+      if (room.isUserInRoom(socket.user)) {
+          room.logicRoom.processEvent({ type: 'leave-room', payload: { id: socket.user.id } })
+          await redis.saveRoom(room)
+      }
+
+      socket.leave(roomId)
+      broadcastState(roomId, room)
+      console.log(`[SOCKET] User ${socket.user.id} left room: ${roomId}`)
+
+      // Clean cache if room is empty
+      if (room.logicRoom.users.length === 0) {
+          roomCache.delete(roomId)
+          console.log(`[SOCKET] Room ${roomId} cache cleared (no users)`)
+      }
+    }
+  } catch (err) {
+    console.error(`[SOCKET] Leave room error for ${socket.id}:`, err)
+  }
+}
+
+const onJoinRoom = async (socket: SocketWithUser, roomId: string): Promise<void> => {
+  try {
+    if (!socket.user) {
+      console.error('[SOCKET] User extraction failed')
+      return
+    }
+
+    const room = await getRoomInstance(roomId)
+    if (!room) {
+        console.error(`[SOCKET] Room ${roomId} not found for join`)
+        return
+    }
+
+    if (!room.isUserInRoom(socket.user)) {
+        room.logicRoom.processEvent({ type: 'join-room', payload: { id: socket.user.id, name: socket.user.name } })
+        await redis.saveRoom(room)
+    }
+
     socket.join(roomId)
 
-    console.log(`User ${socket.id} joined room: ${roomId}`)
+    console.log(`[SOCKET] User ${socket.user.id} joined room: ${roomId}`)
 
-    // Broadcast state immediately after joining
-    broadcastState(io, roomId, room)
+    broadcastState(roomId, room)
 
-    // Register individual event listeners as requested
+    // Register individual event listeners
     socket.on('ready', (isReady: boolean) => {
-      handleGameEvent(io, socket, roomId, { type: 'ready', payload: { id: socket.user!.id, isReady } })
+      handleGameEvent(socket, roomId, { type: 'ready', payload: { id: socket.user!.id, isReady } })
     })
 
     socket.on('add', (text: string) => {
-      handleGameEvent(io, socket, roomId, { type: 'add', payload: { id: socket.user!.id, text } })
+      handleGameEvent(socket, roomId, { type: 'add', payload: { id: socket.user!.id, text } })
     })
 
     socket.on('change-settings', (settings: { rounds?: number; timer?: number }) => {
-      handleGameEvent(io, socket, roomId, { type: 'change-settings', payload: settings })
+      handleGameEvent(socket, roomId, { type: 'change-settings', payload: settings })
     })
 
     // Handle disconnect by leaving room
     socket.on('disconnect', () => {
-      onLeaveRoom(io, socket, roomId)
+      onLeaveRoom(socket, roomId)
     })
   } catch (err) {
-    console.error(`Join room error for ${socket.id}:`, err)
+    console.error(`[SOCKET] Join room error for ${socket.id}:`, err)
   }
 }
 

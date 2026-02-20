@@ -1,8 +1,7 @@
-// TODO: Switch to dotenv-flow for managing multiple environment files
-import dotenv from 'dotenv'
+import dotenvFlow from 'dotenv-flow'
 import { Config } from '@/types'
 
-dotenv.config()
+dotenvFlow.config()
 
 const config: Config = {
   PORT: process.env.PORT,
