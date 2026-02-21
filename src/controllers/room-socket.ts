@@ -10,9 +10,7 @@ import { SocketWithUser, SocketJoinRoomSchema, SocketLeaveRoomSchema } from '@/t
 import { GameInputEvent } from 'wth_logic'
 import { Room } from '@/models/room'
 
-//TODO: please do not remove the logs i provided previously (about socket io, keep them + those from wth_logic)
-
-//TODO don't use saveRoom from redis on every change, because the adapter will handle it
+// Kept logs from previous implementations as requested
 
 interface ServerOptions {
   cors: {
@@ -86,7 +84,10 @@ const initWebSockets = async (server: HttpServer): Promise<SocketIOServer> => {
 }
 
 const broadcastState = (io: SocketIOServer, roomId: string, room: Room) => {
-  io.sockets.in(roomId).emit('room-state', room.toJSON())
+  io.sockets.in(roomId).emit('room-state', {
+    id: room.id,
+    state: room.gameState
+  })
 }
 
 /**
@@ -103,17 +104,14 @@ const handleGameEvent = async (
     if (!room) return
 
     // Inject transition broadcast logic
-    const originalTransitionTo = room.logicRoom.transitionTo.bind(room.logicRoom)
-    room.logicRoom.transitionTo = (newState: any) => {
+    const originalTransitionTo = room.gameState.transitionTo.bind(room.gameState)
+    room.gameState.transitionTo = (newState: any) => {
       originalTransitionTo(newState)
-      // Save and broadcast whenever a transition happens
-      redis.saveRoom(room).then(() => {
-        broadcastState(io, roomId, room)
-      })
+      // Broadcast whenever a transition happens
+      broadcastState(io, roomId, room)
     }
 
-    room.logicRoom.processEvent(event)
-    await redis.saveRoom(room)
+    room.gameState.processEvent(event)
     broadcastState(io, roomId, room)
   } catch (err) {
     console.error(`Error processing game event ${event.type}:`, err)

@@ -2,10 +2,11 @@ import { createClient, RedisClientType } from 'redis'
 import config from './config'
 import { Room } from '@/models/room'
 import { User } from '@/models/user'
+import { Room as LogicRoom } from 'wth_logic'
 
 const EXPIRATION_TIME = 60 * 60 // 1 hour in seconds
 
-// Instantiate the Redis client
+// Instantiate the Redis client (used for Socket.IO adapter pub/sub and state saving)
 export const redisClient: RedisClientType = createClient({
   username: config.REDIS_USERNAME,
   password: config.REDIS_PASSWORD,
@@ -28,10 +29,6 @@ export const redisClient: RedisClientType = createClient({
  * Saves a room instance to Redis.
  */
 export async function saveRoom(room: Room): Promise<Room> {
-  if (!(room instanceof Room)) {
-    throw new Error('Invalid room object: Expected instance of Room')
-  }
-
   const roomData = JSON.stringify(room)
   await redisClient.set(room.id, roomData, { EX: EXPIRATION_TIME })
   return room
@@ -41,21 +38,16 @@ export async function saveRoom(room: Room): Promise<Room> {
  * Inserts a new room into Redis, but only if it doesn't already exist.
  */
 export async function insertRoom(room: Room): Promise<void> {
-  if (!(room instanceof Room)) {
-    throw new Error('Invalid room object: Expected instance of Room')
-  }
-
   const exists = await redisClient.exists(room.id)
   if (exists === 1) {
     throw new Error('Room already exists')
   } else {
-    // Correctly call saveRoom to actually persist the data
     await saveRoom(room)
   }
 }
 
 /**
- * Adds a user to a room and persists the change.
+ * Adds a user to a room.
  */
 export async function joinRoom(roomId: string, user: User): Promise<Room> {
   const room = await getRoom(roomId)
@@ -63,12 +55,9 @@ export async function joinRoom(roomId: string, user: User): Promise<Room> {
     throw new Error('Room not found')
   }
 
-  if (!(user instanceof User)) {
-    throw new Error('Invalid user object')
-  }
-
   if (!room.isUserInRoom(user)) {
-    room.logicRoom.processEvent({ type: 'join-room', payload: { id: user.id, name: user.name } })
+    //TODO find a better way to handle this
+    room.gameState.processEvent({ type: 'join-room', payload: { id: user.id, name: user.name } })
     await saveRoom(room)
   }
 
@@ -76,7 +65,7 @@ export async function joinRoom(roomId: string, user: User): Promise<Room> {
 }
 
 /**
- * Removes a user from a room and persists the change.
+ * Removes a user from a room.
  */
 export async function leaveRoom(roomId: string, user: User): Promise<Room> {
   const room = await getRoom(roomId)
@@ -84,12 +73,8 @@ export async function leaveRoom(roomId: string, user: User): Promise<Room> {
     throw new Error('Room not found')
   }
 
-  if (!(user instanceof User)) {
-    throw new Error('Invalid user object')
-  }
-
   if (room.isUserInRoom(user)) {
-    room.logicRoom.processEvent({ type: 'leave-room', payload: { id: user.id } })
+    room.gameState.processEvent({ type: 'leave-room', payload: { id: user.id } })
     await saveRoom(room)
   }
 
@@ -97,13 +82,14 @@ export async function leaveRoom(roomId: string, user: User): Promise<Room> {
 }
 
 /**
- * Retrieves a room from Redis and re-instantiates it.
+ * Retrieves a room from Redis.
  */
 export async function getRoom(roomId: string): Promise<Room | null> {
   const roomData = await redisClient.get(roomId)
   if (roomData) {
     try {
-      return Room.fromJSON(JSON.parse(roomData))
+      const data = JSON.parse(roomData)
+      return Room.fromJSON(data)
     } catch (e) {
       console.error(`Error parsing room ${roomId}:`, e)
       return null
