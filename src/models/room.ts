@@ -1,119 +1,68 @@
-import {
-  Room as RoomType,
-  RoomSchema,
-  MAX_USERS_PER_ROOM,
-  RoomStatus
-} from '@/types'
-import { ValidationError, RoomError } from '@/errors'
+import { Room as LogicRoom, JoinState, FillState, StartedState, ErrorState } from 'wth_logic'
+import { SlotManager } from 'wth_logic/dist/utils/SlotManager'
+import { RoomError } from '@/errors'
 import { User } from './user'
-import { UserInfo } from './user-info'
-import {
-  RoomState,
-  restoreStateInstance
-} from './room-state'
+import { ConsoleLogger } from '../utils/ConsoleLogger'
 
-export class Room implements RoomType {
+export class Room {
   public readonly id: string
-  public joinedPlayers: User[]
-  public userInfoList: UserInfo[]
-  public state: RoomState
+  public gameState: LogicRoom
 
-  /**
-   * Constructor accepts the full validated Room data object
-   * @param data - Complete room data matching RoomType interface
-   */
-  constructor(data: RoomType) {
-    try {
-      // Validate the complete data structure
-      const validatedData = RoomSchema.parse(data)
-
-      this.id = validatedData.id
-
-      // Re-instantiate User class instances from plain objects
-      this.joinedPlayers = validatedData.joinedPlayers.map(
-        (userData) => new User(userData)
-      )
-
-      // Re-instantiate UserInfo class instances from plain objects
-      this.userInfoList = validatedData.userInfoList.map(
-        (userInfoData) => new UserInfo(userInfoData)
-      )
-
-      // Re-instantiate the State class based on status
-      this.state = restoreStateInstance(validatedData.state)
-
-    } catch (error) {
-      // Wrap Zod errors or generic errors
-      if (error instanceof Error) {
-        throw new ValidationError(`Invalid room data: ${error.message}`)
-      }
-      throw new ValidationError('Invalid room data')
-    }
+  constructor(id: string, gameState?: LogicRoom) {
+    this.id = id
+    this.gameState = gameState || new LogicRoom(new JoinState(), new ConsoleLogger())
   }
 
   isUserInRoom(user: User): boolean {
-    if (!(user instanceof User)) {
-      throw new RoomError('Invalid user object provided', 400)
-    }
-    return this.joinedPlayers.some((joinedUser) => joinedUser.id === user.id)
+    return !!this.gameState.getUser(user.id)
   }
 
   static create(id: string): Room {
     if (!id) {
       throw new RoomError('Room ID is required', 400)
     }
-
-    return new Room({
-      id,
-      joinedPlayers: [],
-      userInfoList: [],
-      state: {
-        status: RoomStatus.JOIN,
-        gameSettings: { nRounds: 3, timerDuration: 60 },
-        readyUsersId: []
-      }
-    })
+    return new Room(id)
   }
 
-  addUser(user: User): void {
-    if (!(user instanceof User)) {
-      throw new RoomError('Invalid user object provided', 400)
+  //TODO this should be in the logic package
+  static fromJSON(data: any): Room {
+    const logicRoom = new LogicRoom(new JoinState(), new ConsoleLogger())
+
+    if (data.gameState?.settings) logicRoom.settings = data.gameState.settings
+    if (data.gameState?.users) logicRoom.users = data.gameState.users
+    if (data.gameState?.slotManager) {
+      // Re-hydrate the slot manager fully
+      const sm = new SlotManager(data.gameState.MAX_PLAYERS || 5)
+      Object.assign(sm, data.gameState.slotManager)
+      logicRoom.slotManager = sm
     }
 
-    const existingUserIndex = this.joinedPlayers.findIndex(
-      (joinedUser) => joinedUser.id === user.id
-    )
+    const stateName = data.gameState?.state?.name || 'JoinState'
+    let hydratedState: any = new JoinState()
 
-    if (existingUserIndex === -1 && this.joinedPlayers.length >= MAX_USERS_PER_ROOM) {
-      throw new RoomError(`Room is full. Maximum ${MAX_USERS_PER_ROOM} users allowed`, 400)
+    switch (stateName) {
+      case 'JoinState':
+        hydratedState = new JoinState()
+        break;
+      case 'FillState':
+        hydratedState = new FillState()
+        break;
+      case 'StartedState':
+        hydratedState = new StartedState()
+        break;
+      case 'ErrorState':
+        hydratedState = new ErrorState(data.gameState?.state?.errorMessage || 'Unknown Error')
+        break;
+      default:
+        break;
     }
 
-    this.userInfoList = this.userInfoList.filter(
-      (userInfo) => userInfo.userId !== user.id
-    )
-
-    if (existingUserIndex !== -1) {
-      this.joinedPlayers[existingUserIndex] = user
-    } else {
-      this.joinedPlayers.push(user)
+    if (data.gameState?.state) {
+      Object.assign(hydratedState, data.gameState.state)
     }
 
-    const newUserInfo = UserInfo.create(user.id, this.id, this.userInfoList)
-    this.userInfoList.push(newUserInfo)
-  }
-
-  removeUser(user: User): void {
-    if (!(user instanceof User)) {
-      throw new RoomError('Invalid user object provided', 400)
-    }
-
-    this.joinedPlayers = this.joinedPlayers.filter(
-      (joinedUser) => joinedUser.id !== user.id
-    )
-
-    this.userInfoList = this.userInfoList.filter(
-      (userInfo) => userInfo.userId !== user.id
-    )
+    logicRoom.state = hydratedState
+    return new Room(data.id, logicRoom)
   }
 }
 

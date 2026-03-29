@@ -1,4 +1,4 @@
-// TODO: Switch to dotenv-flow for managing multiple environment files
+// Minimal dotenv setup
 import dotenv from 'dotenv'
 import { Config } from '@/types'
 
