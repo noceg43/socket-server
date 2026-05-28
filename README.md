@@ -154,7 +154,7 @@ On Render:
    ```
 2. Set the build command to:
    ```bash
-   npm run render:build
+   ./build.sh
    ```
 3. Set the start command to:
    ```bash

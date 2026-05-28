@@ -9,7 +9,7 @@
         "test": "NODE_ENV=test node --test --trace-warnings dist/**/*.test.js",
         "lint": "eslint src/**/*.ts",
         "clean": "rm -rf dist",
-        "render:build": "scripts/setup-render-ssh.sh && npm install && npm run build"
+        "render:build": "./build.sh"
     },
     "author": "",
     "license": "ISC",
