@@ -7,7 +7,8 @@
         "dev": "NODE_ENV=development tsx --watch src/index.ts",
         "test": "NODE_ENV=test node --test --trace-warnings dist/**/*.test.js",
         "lint": "eslint src/**/*.ts",
-        "clean": "rm -rf dist"
+        "clean": "rm -rf dist",
+        "render:build": "scripts/setup-render-ssh.sh && npm install && npm run build"
     },
     "author": "",
     "license": "ISC",
@@ -31,7 +32,7 @@
         "supertest": "^7.1.0",
         "unique-string-generator": "^1.0.8",
         "uuid": "^11.1.1",
-        "wta_logic": "github:noceg43/wth_logic#dev",
+        "wth_logic": "git+ssh://git@github.com/noceg43/wth_logic.git#dev",
         "zod": "^3.25.0"
     },
     "devDependencies": {

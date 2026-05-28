@@ -142,6 +142,27 @@ The WebSocket implementation includes:
    - API: `http://localhost:3001`
    - Socket.IO Admin UI: `https://admin.socket.io`
 
+## Render Deployment
+
+This project installs `wth_logic` from a private GitHub repository over SSH.
+
+On Render:
+
+1. Add an environment variable named `SSH_KEY` containing the Base64-encoded private SSH key that has read access to `noceg43/wth_logic`:
+   ```bash
+   base64 -i id_ed25519
+   ```
+2. Set the build command to:
+   ```bash
+   npm run render:build
+   ```
+3. Set the start command to:
+   ```bash
+   npm run start
+   ```
+
+The build command decodes `SSH_KEY` into `~/.ssh/id_ecdsa`, trusts GitHub's host key, installs dependencies with `npm install`, and then builds the TypeScript output.
+
 ## 📡 API Endpoints
 
 ### Authentication
