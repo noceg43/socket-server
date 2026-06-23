@@ -2,7 +2,7 @@ import { createClient, RedisClientType } from 'redis'
 import config from './config'
 import { Room } from '@/models/room'
 import { User } from '@/models/user'
-import { Room as LogicRoom } from 'wth_logic'
+import { GameEventType } from 'wth_logic'
 
 const EXPIRATION_TIME = 60 * 60 // 1 hour in seconds
 
@@ -29,8 +29,7 @@ export const redisClient: RedisClientType = createClient({
  * Saves a room instance to Redis.
  */
 export async function saveRoom(room: Room): Promise<Room> {
-  const roomData = JSON.stringify(room)
-  await redisClient.set(room.id, roomData, { EX: EXPIRATION_TIME })
+  await redisClient.set(room.id, JSON.stringify(room.toJSON()), { EX: EXPIRATION_TIME })
   return room
 }
 
@@ -55,9 +54,8 @@ export async function joinRoom(roomId: string, user: User): Promise<Room> {
     throw new Error('Room not found')
   }
 
-  if (!room.isUserInRoom(user)) {
-    //TODO find a better way to handle this
-    room.gameState.processEvent({ type: 'join-room', payload: { id: user.id, name: user.name } })
+  if (!room.isUserInRoom(user.id)) {
+    room.gameState.processEvent({ type: GameEventType.JOIN_ROOM, payload: { id: user.id, name: user.name } })
     await saveRoom(room)
   }
 
@@ -73,8 +71,8 @@ export async function leaveRoom(roomId: string, user: User): Promise<Room> {
     throw new Error('Room not found')
   }
 
-  if (room.isUserInRoom(user)) {
-    room.gameState.processEvent({ type: 'leave-room', payload: { id: user.id } })
+  if (room.isUserInRoom(user.id)) {
+    room.gameState.processEvent({ type: GameEventType.LEAVE_ROOM, payload: { id: user.id } })
     await saveRoom(room)
   }
 
@@ -91,7 +89,7 @@ export async function getRoom(roomId: string): Promise<Room | null> {
       const data = JSON.parse(roomData)
       return Room.fromJSON(data)
     } catch (e) {
-      console.error(`Error parsing room ${roomId}:`, e)
+      console.error(`Error parsing or validating room ${roomId}:`, e)
       return null
     }
   }

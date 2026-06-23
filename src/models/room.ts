@@ -1,20 +1,17 @@
-import { Room as LogicRoom, JoinState, FillState, StartedState, ErrorState } from 'wth_logic'
-import { SlotManager } from 'wth_logic/dist/utils/SlotManager'
+import { Room as LogicRoom, GameStateSchema, GameState, createInitialGameState } from 'wth_logic'
 import { RoomError } from '@/errors'
-import { User } from './user'
-import { ConsoleLogger } from '../utils/ConsoleLogger'
 
 export class Room {
   public readonly id: string
   public gameState: LogicRoom
 
-  constructor(id: string, gameState?: LogicRoom) {
+  constructor(id: string, initialState?: GameState) {
     this.id = id
-    this.gameState = gameState || new LogicRoom(new JoinState(), new ConsoleLogger())
+    this.gameState = new LogicRoom(initialState ?? createInitialGameState(), `${id}.log`, id)
   }
 
-  isUserInRoom(user: User): boolean {
-    return !!this.gameState.getUser(user.id)
+  isUserInRoom(userId: string): boolean {
+    return !!this.gameState.getUser(userId)
   }
 
   static create(id: string): Room {
@@ -24,45 +21,28 @@ export class Room {
     return new Room(id)
   }
 
-  //TODO this should be in the logic package
+  // Hydration sicura usando Zod
   static fromJSON(data: any): Room {
-    const logicRoom = new LogicRoom(new JoinState(), new ConsoleLogger())
-
-    if (data.gameState?.settings) logicRoom.settings = data.gameState.settings
-    if (data.gameState?.users) logicRoom.users = data.gameState.users
-    if (data.gameState?.slotManager) {
-      // Re-hydrate the slot manager fully
-      const sm = new SlotManager(data.gameState.MAX_PLAYERS || 5)
-      Object.assign(sm, data.gameState.slotManager)
-      logicRoom.slotManager = sm
+    if (!data || !data.id || !data.state) {
+      throw new RoomError('Invalid room data format', 500)
     }
 
-    const stateName = data.gameState?.state?.name || 'JoinState'
-    let hydratedState: any = new JoinState()
-
-    switch (stateName) {
-      case 'JoinState':
-        hydratedState = new JoinState()
-        break;
-      case 'FillState':
-        hydratedState = new FillState()
-        break;
-      case 'StartedState':
-        hydratedState = new StartedState()
-        break;
-      case 'ErrorState':
-        hydratedState = new ErrorState(data.gameState?.state?.errorMessage || 'Unknown Error')
-        break;
-      default:
-        break;
+    try {
+      // Validazione runtime rigorosa: se Redis ha dati corrotti, fallisce qui invece di rompere il gioco
+      const validatedState = GameStateSchema.parse(data.state)
+      return new Room(data.id, validatedState)
+    } catch (error) {
+      console.error(`State validation failed for room ${data.id}:`, error)
+      throw new RoomError('Corrupted state in database', 500)
     }
+  }
 
-    if (data.gameState?.state) {
-      Object.assign(hydratedState, data.gameState.state)
+  // Serializzazione POJO perfetta
+  toJSON() {
+    return {
+      id: this.id,
+      state: this.gameState.state
     }
-
-    logicRoom.state = hydratedState
-    return new Room(data.id, logicRoom)
   }
 }
 
