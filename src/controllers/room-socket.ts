@@ -28,7 +28,9 @@ const initWebSockets = async (server: HttpServer): Promise<SocketIOServer> => {
     cors: {
       origin: ['https://admin.socket.io'],
       credentials: true
-    }
+    },
+    pingInterval: 3000,
+    pingTimeout: 3000,
   } as ServerOptions)
 
   io.use(middleware.socketUserExtractor)
