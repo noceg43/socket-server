@@ -15,6 +15,12 @@ Content-Type: application/json
 }
 ###
 
+// Check room code availability
+GET http://localhost:3001/api/rooms/availability/WYWT HTTP/1.1
+Authorization: Bearer ...
+Content-Type: application/json
+###
+
 // Join a room
 POST http://localhost:3001/api/rooms/join/WYWT HTTP/1.1
 Authorization: Bearer ...

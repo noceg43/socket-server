@@ -4,13 +4,37 @@ import { UniqueCharOTP } from 'unique-string-generator'
 
 import { Room } from '@/models/room'
 import { AuthenticatedRequest } from '@/types'
-import { insertRoom } from '@/utils/redis'
+import { getRoom, insertRoom } from '@/utils/redis'
 import { AppError, InternalServerError } from '@/errors'
 
 const roomsRouter = Router()
 
 roomsRouter.get('/', async (request: AuthenticatedRequest, response: Response): Promise<void> => {
   response.json({ message: 'Hello from rooms!' })
+})
+
+roomsRouter.get('/availability/:code', async (request: AuthenticatedRequest, response: Response): Promise<void> => {
+  try {
+    const code = request.params.code as string
+    const room = await getRoom(code)
+    response.status(200).json({
+      code,
+      available: room !== null,
+    })
+  } catch (error) {
+    if (error instanceof AppError) {
+      response.status(error.statusCode).json({
+        error: error.message,
+        code: error.errorCode,
+      })
+    } else {
+      const serverError = new InternalServerError('Failed to check room availability')
+      response.status(serverError.statusCode).json({
+        error: serverError.message,
+        code: serverError.errorCode,
+      })
+    }
+  }
 })
 
 roomsRouter.post('/create', async (request: AuthenticatedRequest, response: Response): Promise<void> => {
